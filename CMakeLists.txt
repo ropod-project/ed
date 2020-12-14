@@ -1,82 +1,57 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(ed)
 
+## Compile as C++11, supported in ROS Kinetic and newer
+add_compile_options(-std=c++11)
+
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
+  cmake_modules
   class_loader
+  code_profiler
   cv_bridge
-  ed_object_models
+  ed_msgs
   geolib2
-  geometry_msgs
+  kdl_parser
+  problib
   rgbd
-  pcl_conversions
+  rgbd_msgs
   roscpp
-  roslib
-  std_srvs
   tue_config
   tue_filesystem
   tue_serialization
-  message_generation
-  tue_config
-  problib
 )
 
-find_package(PCL REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common)
 find_package(OpenCV REQUIRED)
-
-# Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-    EntityInfo.msg
-)
-
-# Generate services in the 'srv' folder
-add_service_files(
-  FILES
-    GetGUICommand.srv
-    GetMeasurements.srv
-    RaiseEvent.srv
-    SetClick.srv
-    SetLabel.srv
-    SimpleQuery.srv
-    LoadPlugin.srv
-
-    Query.srv
-    UpdateSrv.srv
-    Configure.srv
-    Reset.srv
-
-    # For builder plugin
-    SetEntity.srv
-)
-
-# Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-    geometry_msgs
-    tue_serialization
-)
+find_package(orocos_kdl REQUIRED)
+find_package(SDFormat REQUIRED)
+find_package(TinyXML REQUIRED)
 
 ###################################
 ## catkin specific configuration ##
 ###################################
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES ed_core ed_io
-  CATKIN_DEPENDS tue_config tue_serialization rgbd ed_object_models problib
-  # DEPENDS system_lib
+  LIBRARIES ed_core ed_io ed_server
+  CATKIN_DEPENDS code_profiler class_loader cv_bridge ed_msgs problib rgbd rgbd_msgs tue_config tue_serialization
+  DEPENDS OpenCV PCL
 )
 
 ###########
 ## Build ##
 ###########
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wreturn-type -Wsign-compare -Wreorder")
+add_compile_options(-Wreturn-type)
+add_compile_options(-Wsign-compare)
+add_compile_options(-Wreorder)
 
 include_directories(
   include
   3rdparty
+  ${TinyXML_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${SDFormat_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -91,36 +66,31 @@ file(GLOB_RECURSE HEADER_FILES include/*.h)
 add_library(ed_core
   src/entity.cpp
   src/measurement.cpp
-  src/update_request.cpp
   src/world_model.cpp
   src/transform_cache.cpp
   src/convex_hull_2d.cpp
   src/convex_hull_calc.cpp
-  include/ed/convex_hull.h
+  src/plugin_container.cpp
+  src/rendering.cpp
 
   # World model querying
   src/world_model/transform_crawler.cpp
 
   # Model loading
+  src/models/load_model.cpp
   src/models/model_loader.cpp
   src/models/shape_loader.cpp
   src/models/xml_shape_parser.cpp
   3rdparty/polypartition/polypartition.cpp
 
-  # DDP is used by measurement.cpp, so put here
-  src/helpers/depth_data_processing.cpp
-  src/helpers/clipper/clipper.cpp
-
   # Logging
   src/logging.cpp
-
   src/error_context.cpp
-  include/ed/error_context.h
 
   ${HEADER_FILES}
 )
-target_link_libraries(ed_core ${catkin_LIBRARIES} ${PCL_LIBRARIES})
-add_dependencies(ed_core ${PROJECT_NAME}_gencpp)
+target_link_libraries(ed_core ${TinyXML_LIBRARIES} ${PCL_LIBRARIES} ${SDFormat_LIBRARIES} ${catkin_LIBRARIES})
+add_dependencies(ed_core ${catkin_EXPORTED_TARGETS})
 
 add_library(ed_io
   src/serialization/serialization.cpp
@@ -133,20 +103,17 @@ add_library(ed_io
   src/io/json_reader.cpp
 )
 target_link_libraries(ed_io ed_core)
-add_dependencies(ed_io ${PROJECT_NAME}_gencpp)
+
+add_library(ed_server src/server.cpp)
+target_link_libraries(ed_server ed_core ed_io)
 
 # ------------------------------------------------------------------------------------------------
 #                                               SERVER
 # ------------------------------------------------------------------------------------------------
 
 # Create executable
-add_executable(ed
-  src/ed.cpp
-  src/server.cpp
-  src/plugin_container.cpp
-)
-target_link_libraries(ed ed_core ed_io)
-add_dependencies(ed ${PROJECT_NAME}_gencpp)
+add_executable(ed src/ed.cpp)
+target_link_libraries(ed ed_core ed_io ed_server)
 
 # ------------------------------------------------------------------------------------------------
 #                                               PLUGINS
@@ -160,16 +127,16 @@ target_link_libraries(ed_robot_plugin ${kdl_parser_LIBRARIES})
 
 add_library(ed_sync_plugin plugins/sync_plugin.cpp)
 target_link_libraries(ed_sync_plugin ${catkin_LIBRARIES})
-add_dependencies(ed_sync_plugin ${PROJECT_NAME}_gencpp)
 
 # ------------------------------------------------------------------------------------------------
 #                                                TOOLS
 # ------------------------------------------------------------------------------------------------
 
-add_executable(ed-list-ids tools/list_ids.cpp)
-
 add_executable(ed_view_model tools/view_model.cpp)
-target_link_libraries(ed_view_model ed_core ed_io)
+target_link_libraries(ed_view_model ed_core)
+
+add_executable(ed_heightmap_to_mesh tools/heightmap_to_mesh.cpp)
+target_link_libraries(ed_heightmap_to_mesh ed_core)
 
 #add_executable(ed_repl tools/repl.cpp)
 #target_link_libraries(ed_repl readline)
@@ -190,20 +157,16 @@ target_link_libraries(ed_test_wm ed_core ${OpenCV_LIBRARIES})
 
 add_executable(test_mask test/test_mask.cpp)
 target_link_libraries(test_mask ed_core ${OpenCV_LIBRARIES})
-add_dependencies(test_mask ${PROJECT_NAME}_gencpp)
 
 add_executable(test_service_speed test/test_service_speed.cpp)
 target_link_libraries(test_service_speed ed_core)
-add_dependencies(test_service_speed ${PROJECT_NAME}_gencpp)
 
 add_executable(show_gui test/show_gui.cpp)
 target_link_libraries(show_gui ed_core ${OpenCV_LIBRARIES})
-add_dependencies(show_gui ${PROJECT_NAME}_gencpp)
 
 add_executable(ed_test_heightmap_triangulation
   test/test_heightmap_triangulation.cpp
   3rdparty/polypartition/polypartition.cpp
 )
 target_link_libraries(ed_test_heightmap_triangulation ed_core ${OpenCV_LIBRARIES} ${geolib2_LIBRARIES} ${tue_config_LIBRARIES})
-
 

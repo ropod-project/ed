@@ -32,7 +32,7 @@ FITTINGMETHOD determineCase ( std::vector<geo::Vec2f>& points, unsigned int* cor
             remainingSize -= ( nPointsLow - 1 );
             pointsRemoved = true;
         }
-        
+
         if ( nPointsHigh < MIN_POINTS_LINEFIT ) {
             *it_high -= *cornerIndex;
             remainingSize -= ( nPointsHigh - 1 );
@@ -41,8 +41,7 @@ FITTINGMETHOD determineCase ( std::vector<geo::Vec2f>& points, unsigned int* cor
 
         if ( pointsRemoved && remainingSize < MIN_POINTS_LINEFIT ) {
             *cornerIndex = std::numeric_limits<unsigned int>::quiet_NaN();
-	    return NONE;
-	    
+            return NONE;
         } else if ( pointsRemoved && remainingSize >= MIN_POINTS_LINEFIT ) {
             *cornerIndex = std::numeric_limits<unsigned int>::quiet_NaN();
             return LINE;
@@ -188,8 +187,8 @@ void Circle::setMarker ( visualization_msgs::Marker& marker , unsigned int ID )
    color.r = 0.0;
    color.g = 1.0;
    color.b = 0.0;
-   
-   this->setMarker ( marker, ID, color ); 
+
+   this->setMarker ( marker, ID, color );
 }
 
 void Circle::setMarker ( visualization_msgs::Marker& marker, unsigned int ID, std_msgs::ColorRGBA color )
@@ -211,7 +210,7 @@ void Circle::setMarker ( visualization_msgs::Marker& marker, unsigned int ID, st
     marker.scale.x = 2*R_;
     marker.scale.y = 2*R_;
     marker.scale.z = 0.1;
-    
+
     marker.color = color;
 
     marker.lifetime = ros::Duration ( TIMEOUT_TIME );
@@ -221,14 +220,14 @@ std::vector< geo::Vec2f > Circle::convexHullPoints(unsigned int nPoints)
 {
   std::vector< geo::Vec2f > Points(nPoints);
   float deltaAngle = 2*M_PIl / nPoints;
-  
+
   for(unsigned int ii = 0; ii < nPoints; ii++)
   {
     float angle = ii*deltaAngle;
     Points[ii].x = x_ + R_*cos(angle);
     Points[ii].y = y_ + R_*sin(angle);
   }
-  
+
   return Points;
 }
 
@@ -250,7 +249,7 @@ float fitRectangle ( std::vector<geo::Vec2f>& points, ed::tracking::Rectangle* r
     //determine width and height
     float x_end = points[cornerIndex].x;
     float y_end = points[cornerIndex].y;
-    
+
     float dx = x_start1 - x_end;
     float dy = y_start1 - y_end;
     float width = sqrt ( dx*dx+dy*dy );
@@ -258,10 +257,10 @@ float fitRectangle ( std::vector<geo::Vec2f>& points, ed::tracking::Rectangle* r
 
     float x_start2 = x_end;
     float y_start2 = y_end;
-    
+
     float x_end2 = points[points.size() - 1].x;
     float y_end2 = points[points.size() - 1].y;
-   
+
     dx = x_end2 - x_start2;
     dy = y_start2 - y_end2;
     float depth = sqrt ( dx*dx+dy*dy );
@@ -361,7 +360,7 @@ bool findPossibleCorners ( std::vector<geo::Vec2f>& points, std::vector<unsigned
         }
 
         std::sort ( cornerIndices->begin(), cornerIndices->end(), greater() );
-	
+
         return true;
     } else {
         return false;
@@ -394,7 +393,7 @@ float fitLine ( std::vector<geo::Vec2f>& points, Eigen::VectorXd& beta_hat, std:
     Eigen::MatrixXd m ( size, 2 );
     Eigen::VectorXd y ( size );
     unsigned int counter = 0;
-    
+
     for ( std::vector<geo::Vec2f>::iterator it = *it_start; it != *it_end; ++it ) {
         geo::Vec2f point = *it;
         m ( counter, 0 ) = ( double ) 1.0;
@@ -454,7 +453,7 @@ float setRectangularParametersForLine ( std::vector<geo::Vec2f>& points,  std::v
 Rectangle::Rectangle()
 {
     float notANumber = 0.0/0.0;
-    P_.setIdentity(2,2); 
+    P_.setIdentity(2,2);
     this->setValues( notANumber, notANumber, notANumber, notANumber, notANumber, notANumber, notANumber, notANumber, notANumber ); // Produces NaN values, meaning that the properties are not initialized yet
 }
 
@@ -511,13 +510,13 @@ void Rectangle::setMarker ( visualization_msgs::Marker& marker , unsigned int ID
    color.r = 0.0;
    color.g = 1.0;
    color.b = 0.0;
-   
-   this->setMarker ( marker, ID, color ); 
+
+   this->setMarker ( marker, ID, color );
 }
 
 void Rectangle::setMarker ( visualization_msgs::Marker& marker, unsigned int ID, std_msgs::ColorRGBA color)
 {
-        this->setMarker ( marker, ID, color, "default namespace" ); 
+        this->setMarker ( marker, ID, color, "default namespace" );
 }
 
 std::vector<geo::Vec2f> Rectangle::determineCorners ( float associationDistance )
@@ -601,37 +600,37 @@ void FeatureProperties::updateCircleFeatures(float Q_k, float R_k, float z_k) //
 {
   float x_k_1_k_1 = circle_.get_R();
   float x_k_k_1 = x_k_1_k_1; // Predicted state estimate. F = Identity.
-  
+
   float y_k = z_k - x_k_k_1;// H = Identity
-  
+
   float P_k_k_1 = circle_.get_P() + Q_k;
   float S_k = P_k_k_1 + R_k;
   float K_k = P_k_k_1/S_k;
   float x_k_k = x_k_1_k_1 + K_k*y_k;
   float P_k_k = (1 - K_k)*P_k_k_1;
-  
+
   circle_.set_R(x_k_k);
   circle_.set_P(P_k_k);
 
 }
 
 void FeatureProperties::updateRectangleFeatures(Eigen::MatrixXd Q_k, Eigen::MatrixXd R_k, Eigen::VectorXd z_k)
-{ 
+{
 //   std::cout << "RectangleFeature update1" << std::endl;
   Eigen::MatrixXd F(2,2), H(2,2), I(2,2);
   I.setIdentity(2,2);
   F = I;
   H = I;
-  
+
 //   std::cout << "RectangleFeature update2" << std::endl;
-  
+
   Eigen::VectorXd x_k_1_k_1(2);
   x_k_1_k_1 << rectangle_.get_w(),rectangle_.get_d();
 
 //   std::cout << "RectangleFeature update3" << std::endl;
- 
+
   //Eigen::MatrixXd::Identity(2,2);
-  
+
   //= circle_.get_R();
   Eigen::VectorXd x_k_k_1 = F*x_k_1_k_1; // Predicted state estimate. F = Identity.
 //   std::cout << "RectangleFeature update4" << std::endl;
@@ -665,7 +664,15 @@ namespace convex_hull
 {
 // ----------------------------------------------------------------------------------------------------
 
-void create ( const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& chull, geo::Pose3D& pose )
+/**
+ * @brief create fill a ConvexHull and put its origin in the middle of the Convexhull
+ * @param points points describing the shape. Points should be in map frame.
+ * @param z_min min height
+ * @param z_max max height
+ * @param c filled ConvexHull
+ * @param pose new pose of the convexhull
+ */
+void create(const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& chull, geo::Pose3D& pose)
 {
     cv::Mat_<cv::Vec2f> points_2d ( 1, points.size() );
     for ( unsigned int i = 0; i < points.size(); ++i ) {
@@ -719,59 +726,78 @@ void create ( const std::vector<geo::Vec2f>& points, float z_min, float z_max, C
 
 // ----------------------------------------------------------------------------------------------------
 
-void createAbsolute ( const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& c )
+/**
+ * @brief createAbsolute fill a ConvexHull with its origin in map frame.
+ * @param points points describing the shape. Points should be in map frame.
+ * @param z_min min height
+ * @param z_max max height
+ * @param c filled ConvexHull
+ */
+void createAbsolute(const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& chull)
 {
     cv::Mat_<cv::Vec2f> points_2d ( 1, points.size() );
     for ( unsigned int i = 0; i < points.size(); ++i ) {
         points_2d.at<cv::Vec2f> ( i ) = cv::Vec2f ( points[i].x, points[i].y );
     }
 
-    c.z_min = z_min;
-    c.z_max = z_max;
+    chull.z_min = z_min;
+    chull.z_max = z_max;
 
     std::vector<int> chull_indices;
     cv::convexHull ( points_2d, chull_indices );
 
-    c.points.resize ( chull_indices.size() );
-    for ( unsigned int i = 0; i < chull_indices.size(); ++i ) {
-        const cv::Vec2f& p_cv = points_2d.at<cv::Vec2f> ( chull_indices[i] );
-        c.points[i] = geo::Vec2f ( p_cv[0], p_cv[1] );
+    chull.points.resize(chull_indices.size());
+    for(unsigned int i = 0; i < chull_indices.size(); ++i)
+    {
+        const cv::Vec2f& p_cv = points_2d.at<cv::Vec2f>(chull_indices[i]);
+        chull.points[i] = geo::Vec2f(p_cv[0], p_cv[1]);
     }
 
     // Calculate normals and edges
-    convex_hull::calculateEdgesAndNormals ( c );
+    convex_hull::calculateEdgesAndNormals(chull);
 
     // Calculate area
-    calculateArea ( c );
+    calculateArea(chull);
 }
 
 // ----------------------------------------------------------------------------------------------------
 
-void calculateEdgesAndNormals ( ConvexHull& c )
+void calculateEdgesAndNormals(ConvexHull& chull)
 {
-    c.edges.resize ( c.points.size() );
-    c.normals.resize ( c.points.size() );
+    chull.edges.resize(chull.points.size());
+    chull.normals.resize(chull.points.size());
 
-    for ( unsigned int i = 0; i < c.points.size(); ++i ) {
-        unsigned int j = ( i + 1 ) % c.points.size();
+    for(unsigned int i = 0; i < chull.points.size(); ++i)
+    {
+        unsigned int j = (i + 1) % chull.points.size();
 
-        const geo::Vec2f& p1 = c.points[i];
-        const geo::Vec2f& p2 = c.points[j];
+        const geo::Vec2f& p1 = chull.points[i];
+        const geo::Vec2f& p2 = chull.points[j];
 
         // Calculate edge
         geo::Vec2f e = p2 - p1;
-        c.edges[i] = e;
+        chull.edges[i] = e;
 
         // Calculate normal
-        c.normals[i] = geo::Vec2f ( e.y, -e.x ).normalized();
+        chull.normals[i] = geo::Vec2f(e.y, -e.x).normalized();
     }
 }
 
 // ----------------------------------------------------------------------------------------------------
 
-bool collide ( const ConvexHull& c1, const geo::Vector3& pos1,
-               const ConvexHull& c2, const geo::Vector3& pos2,
-               float xy_padding, float z_padding )
+/**
+ * @brief collide Check of two ConvexHull collide with padding in xy and in z.
+ * @param c1 ConvexHull 1
+ * @param pos1 position of ConvexHull 1
+ * @param c2 ConvexHull 2
+ * @param pos2 position of ConvexHull 2
+ * @param xy_padding padding in xy-plane
+ * @param z_padding padding in z-plane
+ * @return
+ */
+bool collide(const ConvexHull& c1, const geo::Vector3& pos1,
+             const ConvexHull& c2, const geo::Vector3& pos2,
+             float xy_padding, float z_padding)
 {
     if ( c1.points.size() < 3 || c2.points.size() < 3 ) {
         return false;
@@ -842,10 +868,15 @@ bool collide ( const ConvexHull& c1, const geo::Vector3& pos1,
 
 // ----------------------------------------------------------------------------------------------------
 
-void calculateArea ( ConvexHull& c )
+/**
+ * @brief calculateArea calculate the area of the ConvexHull in xy-plane.
+ * @param c ConvexHull
+ */
+void calculateArea(ConvexHull& c)
 {
     c.area = 0;
-    for ( unsigned int i = 0; i < c.points.size(); ++i ) {
+    for ( unsigned int i = 0; i < c.points.size(); ++i )
+    {
         unsigned int j = ( i + 1 ) % c.points.size();
 
         const geo::Vec2f& p1 = c.points[i];

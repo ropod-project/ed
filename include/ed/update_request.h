@@ -10,6 +10,7 @@
 #include <tue/config/data_pointer.h>
 
 #include <map>
+#include <set>
 #include <vector>
 #include <geolib/datatypes.h>
 
@@ -51,6 +52,30 @@ public:
     void setShape(const UUID& id, const geo::ShapeConstPtr& shape) { shapes[id] = shape; flagUpdated(id); }
 
 
+    //VOLUMES
+
+    std::map<UUID, std::map<std::string, geo::ShapeConstPtr> > volumes_added;
+    void addVolume(const UUID& id, const std::string Volume_name, const geo::ShapeConstPtr& Volume_shape)
+    {   std::map<UUID, std::map<std::string, geo::ShapeConstPtr> >::iterator it = volumes_added.find(id);
+        if (it != volumes_added.end())
+        {
+            std::map<std::string, geo::ShapeConstPtr>::iterator it2 = it->second.find(Volume_name);
+            if (it2 != it->second.end())
+                it2->second = Volume_shape;
+            else
+                it->second[Volume_name] = Volume_shape;
+        }
+        else
+        {
+            std::map<std::string, geo::ShapeConstPtr> volume_map;
+            volume_map[Volume_name] = Volume_shape;
+            volumes_added[id] = volume_map;
+        }
+        flagUpdated(id);
+    }
+
+    std::map<UUID, std::set<std::string> > volumes_removed;
+    void removeVolume(const UUID& id, const std::string Volume_name) { volumes_removed[id].insert(Volume_name); flagUpdated(id); }
 
 
     // CONVEX HULLS NEW
@@ -77,8 +102,11 @@ public:
     std::map<UUID, std::string> types;
     void setType(const UUID& id, const std::string& type) { types[id] = type; flagUpdated(id); }
 
-    std::map<UUID, std::set<std::string> > type_sets_;
-    void addType(const UUID& id, const std::string& type) { type_sets_[id].insert(type); flagUpdated(id); }
+    std::map<UUID, std::set<std::string> > type_sets_added;
+    void addType(const UUID& id, const std::string& type) { type_sets_added[id].insert(type); flagUpdated(id); }
+
+    std::map<UUID, std::set<std::string> > type_sets_removed;
+    void removeType(const UUID& id, const std::string& type) { type_sets_removed[id].insert(type); flagUpdated(id); }
 
 
     // PROBABILITY OF EXISTENCE

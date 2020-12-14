@@ -78,6 +78,34 @@ void WorldModel::update(const UpdateRequest& req)
         }
     }
 
+    // Update volumes
+    for (std::map<UUID, std::set<std::string> >::const_iterator it = req.volumes_removed.begin(); it != req.volumes_removed.end(); ++it )
+    {
+        EntityPtr e = getOrAddEntity(it->first, new_entities);
+        const std::set<std::string>& volume_names = it->second;
+        for (std::set<std::string>::const_iterator it2 = volume_names.begin(); it2 != volume_names.end(); ++it2)
+            e->removeVolume(*it2);
+        Idx idx;
+        if (findEntityIdx(e->id(), idx))
+        {
+            entity_shape_revisions_[idx] = revision_;
+        }
+    }
+    for (std::map<UUID, std::map<std::string, geo::ShapeConstPtr> >::const_iterator it = req.volumes_added.begin(); it != req.volumes_added.end(); ++it)
+    {
+        EntityPtr e = getOrAddEntity(it->first, new_entities);
+        const std::map<std::string, geo::ShapeConstPtr>& volumes = it->second;
+        for (std::map<std::string, geo::ShapeConstPtr>::const_iterator it2 = volumes.begin(); it2 != volumes.end(); ++it2)
+        {
+            e->addVolume(it2->first, it2->second);
+        }
+        Idx idx;
+        if (findEntityIdx(e->id(), idx))
+        {
+            entity_shape_revisions_[idx] = revision_;
+        }
+    }
+
     // Update types
     for(std::map<UUID, std::string>::const_iterator it = req.types.begin(); it != req.types.end(); ++it)
     {
@@ -85,12 +113,20 @@ void WorldModel::update(const UpdateRequest& req)
         e->setType(it->second);
     }
 
-    for(std::map<UUID, std::set<std::string> >::const_iterator it = req.type_sets_.begin(); it != req.type_sets_.end(); ++it)
+    for(std::map<UUID, std::set<std::string> >::const_iterator it = req.type_sets_added.begin(); it != req.type_sets_added.end(); ++it)
     {
         EntityPtr e = getOrAddEntity(it->first, new_entities);
         const std::set<std::string>& type_set = it->second;
         for(std::set<std::string>::const_iterator it2 = type_set.begin(); it2 != type_set.end(); ++it2)
             e->addType(*it2);
+    }
+
+    for(std::map<UUID, std::set<std::string> >::const_iterator it = req.type_sets_removed.begin(); it != req.type_sets_removed.end(); ++it)
+    {
+        EntityPtr e = getOrAddEntity(it->first, new_entities);
+        const std::set<std::string>& type_set = it->second;
+        for(std::set<std::string>::const_iterator it2 = type_set.begin(); it2 != type_set.end(); ++it2)
+            e->removeType(*it2);
     }
 
     // Update existence probabilities
@@ -148,11 +184,6 @@ void WorldModel::update(const UpdateRequest& req)
         tue::config::DataPointer params;
         params.add(e->data());
         params.add(it->second);
-
-        tue::config::Reader r(params);
-        std::string type;
-        if (r.value("type", type, tue::config::OPTIONAL))
-            e->setType(type);
 
         e->setData(params);
     }
@@ -433,7 +464,7 @@ Idx WorldModel::addNewEntity(const EntityConstPtr& e)
 const PropertyKeyDBEntry* WorldModel::getPropertyInfo(const std::string& name) const
 {
     if (!property_info_db_)
-        return 0;
+        return nullptr;
 
     return property_info_db_->getPropertyKeyDBEntry(name);
 }

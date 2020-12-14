@@ -1,5 +1,5 @@
-#ifndef entity_h_
-#define entity_h_
+#ifndef ED_ENTITY_H_
+#define ED_ENTITY_H_
 
 #include "ed/types.h"
 #include "ed/convex_hull_2d.h"
@@ -17,6 +17,10 @@
 #include "ed/logging.h"
 
 #include "ed/measurement_convex_hull.h"
+
+#include <map>
+#include <set>
+#include <vector>
 
 namespace ed
 {
@@ -38,6 +42,7 @@ public:
 
     const std::set<TYPE>& types() const { return types_; }
     void addType(const TYPE& type) { types_.insert(type); }
+    void removeType(const TYPE& type) { types_.erase(type); }
     bool hasType(const TYPE& type) const { return types_.find(type) != types_.end(); }
 
     void measurements(std::vector<MeasurementConstPtr>& measurements, double min_timestamp = 0) const;
@@ -50,6 +55,10 @@ public:
 
     inline geo::ShapeConstPtr shape() const { return shape_; }
     void setShape(const geo::ShapeConstPtr& shape);
+
+    inline const std::map<std::string, geo::ShapeConstPtr>& volumes() const { return volumes_; }
+    void addVolume(const std::string& volume_name, const geo::ShapeConstPtr& volume_shape) { volumes_[volume_name] = volume_shape; ++shape_revision_; }
+    void removeVolume(const std::string& volume_name) { volumes_.erase(volume_name); ++shape_revision_; }
 
     inline int shapeRevision() const{ return shape_ ? shape_revision_ : 0; }
 
@@ -241,6 +250,7 @@ private:
     unsigned int measurements_seq_;
 
     geo::ShapeConstPtr shape_;
+    std::map<std::string, geo::ShapeConstPtr> volumes_;
     int shape_revision_;
 
     std::map<std::string, MeasurementConvexHull> convex_hull_map_;

@@ -66,7 +66,7 @@ bool JointRelation::calculateTransform(const ed::Time& t, geo::Pose3D& tf) const
 
 // ----------------------------------------------------------------------------------------------------
 
-geo::ShapePtr linkToShape(const boost::shared_ptr<urdf::Link>& link)
+geo::ShapePtr linkToShape(const urdf::LinkSharedPtr& link)
 {
     geo::ShapePtr shape;
 
@@ -77,9 +77,6 @@ geo::ShapePtr linkToShape(const boost::shared_ptr<urdf::Link>& link)
     const urdf::Pose& o = link->visual->origin;
     offset.t = geo::Vector3(o.position.x, o.position.y, o.position.z);
     offset.R.setRotation(geo::Quaternion(o.rotation.x, o.rotation.y, o.rotation.z, o.rotation.w));
-
-    //            std::cout << link->name << ": " << offset << std::endl;
-    //            std::cout << "    " << o.rotation.x << ", " << o.rotation.y<< ", " << o.rotation.z<< ", " << o.rotation.w << std::endl;
 
     if (link->visual->geometry->type == urdf::Geometry::MESH)
     {
@@ -102,7 +99,7 @@ geo::ShapePtr linkToShape(const boost::shared_ptr<urdf::Link>& link)
             shape = importer.readMeshFile(abs_filename, mesh->scale.x);
 
             if (!shape)
-                std::cout << "RobotPlugin: Could not load shape" << std::endl;
+                ROS_ERROR("RobotPlugin: Could not load shape");
         }
     }
     else if (link->visual->geometry->type == urdf::Geometry::BOX)
@@ -158,7 +155,12 @@ geo::ShapePtr linkToShape(const boost::shared_ptr<urdf::Link>& link)
     }
 
     // Transform using visual offset
-    shape->setMesh(shape->getMesh().getTransformed(offset));
+    if (shape && offset != geo::Pose3D::identity())
+    {
+        geo::ShapePtr shape_tr(new geo::Shape);
+        shape_tr->setMesh(shape->getMesh().getTransformed(offset));
+        shape = shape_tr;
+    }
 
     return shape;
 }
@@ -212,7 +214,7 @@ void RobotPlugin::jointCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     if (msg->name.size() != msg->position.size())
     {
-        std::cout << "[ED RobotPlugin] On joint callback: name and position vector must be of equal length." << std::endl;
+        ROS_ERROR("[ED RobotPlugin] On joint callback: name and position vector must be of equal length.");
         return;
     }
 
@@ -238,7 +240,7 @@ void RobotPlugin::jointCallback(const sensor_msgs::JointState::ConstPtr& msg)
         }
         else
         {
-            std::cout << "[ED RobotPlugin] On joint callback: unknown joint name '" << name << "'." << std::endl;
+            ROS_ERROR_STREAM("[ED RobotPlugin] On joint callback: unknown joint name '" << name << "'.");
         }
     }
 }
@@ -260,7 +262,7 @@ void RobotPlugin::configure(tue::Configuration config)
         {
             std::string topic;
             config.value("topic", topic);
-            std::cout << "[RobotPlugin] Topic: " << topic << std::endl;
+            ROS_DEBUG_STREAM("[RobotPlugin] Topic: " << topic);
 
             ros::SubscribeOptions sub_options = ros::SubscribeOptions::create<sensor_msgs::JointState>
                     (topic, 10, boost::bind(&RobotPlugin::jointCallback, this, _1), ros::VoidPtr(), &cb_queue_);
@@ -289,7 +291,7 @@ void RobotPlugin::configure(tue::Configuration config)
 
     if (!robot_model_.initString(urdf_xml))
     {
-        std::cout << "Could not load robot model." << std::endl;
+        config.addError("Could not load robot model.");
         return;
     }
 
@@ -311,12 +313,12 @@ void RobotPlugin::process(const ed::WorldModel& world, ed::UpdateRequest& req)
     if (!model_initialized_)
     {
         // Create the links
-        std::vector<boost::shared_ptr<urdf::Link> > links;
+        std::vector<urdf::LinkSharedPtr> links;
         robot_model_.getLinks(links);
 
-        for(std::vector<boost::shared_ptr<urdf::Link> >::const_iterator it = links.begin(); it != links.end(); ++it)
+        for(std::vector<urdf::LinkSharedPtr >::const_iterator it = links.begin(); it != links.end(); ++it)
         {
-            const boost::shared_ptr<urdf::Link>& link = *it;
+            const urdf::LinkSharedPtr& link = *it;
 
             geo::ShapePtr shape = linkToShape(link);
             if (shape)

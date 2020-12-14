@@ -7,13 +7,15 @@
 
 #include <ed/error_context.h>
 
+#include <ros/console.h>
+
 namespace ed
 {
 
 // --------------------------------------------------------------------------------
 
 PluginContainer::PluginContainer()
-    : class_loader_(0), request_stop_(false), is_running_(false), cycle_duration_(0.1), loop_frequency_(10), step_finished_(true), t_last_update_(0),
+    : class_loader_(nullptr), request_stop_(false), is_running_(false), cycle_duration_(0.1), loop_frequency_(10), step_finished_(true), t_last_update_(0),
       total_process_time_sec_(0)
 {
     timer_.start();
@@ -25,11 +27,12 @@ PluginContainer::~PluginContainer()
 {
     request_stop_ = true;
 
-//    if (thread_)
-//        thread_->join();
+    if (thread_)
+        thread_->join();
 
     plugin_.reset();
-    delete class_loader_;
+    if (class_loader_)
+        delete class_loader_;
 }
 
 // --------------------------------------------------------------------------------
@@ -37,7 +40,8 @@ PluginContainer::~PluginContainer()
 PluginPtr PluginContainer::loadPlugin(const std::string plugin_name, const std::string& lib_filename, InitData& init)
 {
     // Load the library
-    delete class_loader_;
+    if (class_loader_)
+        delete class_loader_;
     class_loader_ = new class_loader::ClassLoader(lib_filename);
 
     // Create plugin
@@ -80,7 +84,7 @@ void PluginContainer::configure(InitData& init, bool reconfigure)
 {
     // Read optional frequency
     double freq = 10; // default
-    init.config.value("frequency", freq, tue::OPTIONAL);
+    init.config.value("frequency", freq, tue::config::OPTIONAL);
 
     // Set plugin loop frequency
     setLoopFrequency(freq);
@@ -94,7 +98,7 @@ void PluginContainer::configure(InitData& init, bool reconfigure)
         plugin_->initialize(scoped_init);
 
         // Read optional frequency (inside parameters is obsolete)
-        if (init.config.value("frequency", freq, tue::OPTIONAL))
+        if (init.config.value("frequency", freq, tue::config::OPTIONAL))
         {
             std::cout << "[ED]: Warning while loading plugin '" << name_ << "': please specify parameter 'frequency' outside 'parameters'." << std::endl;
         }
@@ -138,9 +142,12 @@ void PluginContainer::run()
     ros::Rate ir(innerloop_frequency);
     while(!request_stop_)
     {
-        while (!step())
+        if (!step())
+            // If not stepped, sleep short
             ir.sleep();
-        r.sleep();
+        else
+            // stepped, sleep normal
+            r.sleep();
     }
 
     is_running_ = false;

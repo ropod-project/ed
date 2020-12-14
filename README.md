@@ -1,5 +1,5 @@
-ED : Environment Descriptor [![Build Status](https://travis-ci.org/tue-robotics/ed.svg?branch=master)](https://travis-ci.org/tue-robotics/ed)
-======
+# ED: Environment Descriptor
+[![Build Status](https://travis-ci.org/tue-robotics/ed.svg?branch=master)](https://travis-ci.org/tue-robotics/ed)
 
 ## Introduction
 
@@ -27,30 +27,34 @@ All ED tutorials can be found in the ed_tutorials package: https://github.com/tu
 ## Installation
 
 Requirements:
-* Ubuntu (12.04 or newer)
-* ROS (Hydro or newer)
+* Ubuntu (16.04 or newer)
+* ROS (Kinetic or newer)
 
 We assume you have successfully installed ROS and set-up a Catkin workspace. Check out the following packages in your workspace:
 
     cd <your_catkin_workspace>/src
 
     git clone https://github.com/tue-robotics/ed.git
-    git clone https://github.com/tue-robotics/tue_filesystem
-    git clone https://github.com/tue-robotics/geolib2
-    git clone https://github.com/tue-robotics/code_profiler
-    git clone https://github.com/tue-robotics/tue_config.git
     git clone https://github.com/tue-robotics/ed_object_models.git
-    git clone https://github.com/tue-robotics/tue_serialization
-    git clone https://github.com/tue-robotics/rgbd
+    git clone https://github.com/tue-robotics/ed_msgs.git
+    git clone https://github.com/tue-robotics/code_profiler.git
+    git clone https://github.com/tue-robotics/geolib2.git
+    git clone https://github.com/tue-robotics/rgbd.git
+    git clone https://github.com/tue-robotics/tue_config.git
+    git clone https://github.com/tue-robotics/tue_filesystem.git
+    git clone https://github.com/tue-robotics/tue_serialization.git
 
-You will also need the following system dependencies (ROS Indigo, Ubuntu 14.04):
+ED is able to read (a subset of) [SDF](http://sdformat.org/), therefore the [SDF library](https://bitbucket.org/osrf/sdformat) is used. The minimal required version is 4.4. On ubuntu 16.04, you need to add the OSRF apt sources ([link](http://gazebosim.org/tutorials?tut=install_ubuntu)), as the released version on the main channel is just 4.0.
+To install the library (version 4.X): `libsdformat4-dev`
 
-    sudo apt-get install ros-indigo-geometry-msgs ros-indigo-pcl-ros ros-indigo-message-filters ros-indigo-image-geometry ros-indigo-kdl-parser ros-indigo-roslib ros-indigo-std-srvs libyaml-cpp-dev ros-indigo-cv-bridge ros-indigo-tf libassimp-dev ros-indigo-message-generation ros-indigo-roscpp ros-indigo-message-runtime ros-indigo-class-loader ros-indigo-pcl-conversions
+You will also need the following system dependencies (ROS kinetic, Ubuntu 16.04):
+
+    sudo apt-get install ros-kinetic-geometry-msgs ros-kinetic-pcl-ros ros-kinetic-message-filters ros-kinetic-image-geometry ros-kinetic-kdl-parser ros-kinetic-roslib ros-kinetic-std-srvs libyaml-cpp-dev ros-kinetic-cv-bridge ros-kinetic-tf libassimp-dev ros-kinetic-message-generation ros-kinetic-roscpp ros-kinetic-message-runtime ros-kinetic-class-loader
 
 This should be sufficient to successfully compile ED:
 
     cd <your_catkin_workspace>
-    catkin_make
+    catkin_make/catkin build
 
 ## ED Extensions
 
@@ -74,3 +78,7 @@ Extension for publishing occupancy grids and calculating map navigation constrai
 ### Perception
 Extension for classifying entities based on their attached RGBD measurements.
 - https://github.com/tue-robotics/ed_perception.git
+
+### MoveIt
+Extension for exporting meshes to MoveIt
+- https://github.com/tue-robotics/ed_moveit.git

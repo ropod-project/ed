@@ -16,6 +16,8 @@
 #include "problib/conversions.h"
 #include "problib/datatypes.h"
 
+#include <vector>
+
 namespace ed
 {
 
@@ -24,7 +26,7 @@ namespace tracking
 
 // TODO: make many of variables below configurable/tunable in ED model descriptions?
 #define TIMEOUT_TIME 0.1 // [s]
-#define MAX_LINE_ERROR 0.05 // [m]  
+#define MAX_LINE_ERROR 0.05 // [m]
 #define MIN_DISTANCE_CORNER_DETECTION 0.05 // [m]
 #define MIN_POINTS_LINEFIT 5 // [-]
 #define ARBITRARY_HEIGHT 0.03 //[m]
@@ -53,15 +55,15 @@ public:
 class Circle
 {
   public:
-    
+
     float x_, y_, z_, R_, roll_, pitch_, yaw_; // x, y, z-positions, radius, roll, pitch, yaw
-    
+
     float P_; // estimated covariance of the kalman filter to describe the radius
 
     Circle();
-    
+
     void setValues ( float x, float y, float z, float R, float roll, float pitch, float yaw );
-    
+
     float get_x()     { return x_; } ;
     float get_y()     { return y_; } ;
     float get_z()     { return z_; } ;
@@ -70,7 +72,7 @@ class Circle
     float get_roll()  { return roll_; } ;
     float get_pitch() { return pitch_; } ;
     float get_yaw()   { return yaw_; } ;
-    
+
     void set_x     ( float x )     { x_     = x; } ;
     void set_y     ( float y )     { y_     = y; } ;
     void set_z     ( float z )     { z_     = z; } ;
@@ -81,11 +83,11 @@ class Circle
     void set_yaw   ( float yaw )   { yaw_   = yaw; } ;
 
     void setMarker ( visualization_msgs::Marker& marker, unsigned int ID );
-    
+
     void setMarker ( visualization_msgs::Marker& marker, unsigned int ID, std_msgs::ColorRGBA color );
-    
+
     geo::Pose3D getPose() {geo::Pose3D pose(x_, y_, z_, roll_, pitch_,yaw_); return pose; };
-    
+
     std::vector< geo::Vec2f > convexHullPoints(unsigned int nPoints);
 
     void printValues();
@@ -109,13 +111,13 @@ class Rectangle
 {
   public:
     float x_, y_, z_, w_, d_, h_, roll_, pitch_, yaw_; // x, y of center, width, height and rotation of rectangle
-    
+
     Eigen::MatrixXd P_;
 
     Rectangle();
-      
+
     void setValues ( float x, float y, float z, float w, float d, float h, float roll, float pitch, float yaw );
-    
+
     float get_x()           { return x_; } ;
     float get_y()           { return y_; } ;
     float get_z()           { return z_; } ;
@@ -126,9 +128,9 @@ class Rectangle
     float get_yaw()         { return yaw_; } ;
     float get_theta()       { return yaw_; }
     Eigen::MatrixXd get_P() { return P_; } ;
-    
+
     geo::Pose3D getPose() {geo::Pose3D pose(x_, y_, z_, roll_, pitch_,yaw_); return pose; };
-    
+
     void set_x     ( float x )           { x_ = x; } ;
     void set_y     ( float y )           { y_ = y; } ;
     void set_z     ( float z )           { z_ = z; } ;
@@ -140,11 +142,11 @@ class Rectangle
     void set_yaw   ( float yaw )         { yaw_   = yaw; } ;
 
     void setMarker ( visualization_msgs::Marker& marker, unsigned int ID );
-    
+
     void setMarker ( visualization_msgs::Marker& marker, unsigned int ID, std_msgs::ColorRGBA color);
-    
+
     void setMarker ( visualization_msgs::Marker& marker, unsigned int ID, std_msgs::ColorRGBA color, std::string ns );
-    
+
     std::vector<geo::Vec2f> determineCorners( float associationDistance);
 
     void printValues();
@@ -267,17 +269,17 @@ class FeatureProperties
 namespace convex_hull
 {
 
-void create ( const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& c, geo::Pose3D& pose );
+void create(const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& chull, geo::Pose3D& pose);
 
-void createAbsolute ( const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& c );
+void createAbsolute(const std::vector<geo::Vec2f>& points, float z_min, float z_max, ConvexHull& chull);
 
-void calculateEdgesAndNormals ( ConvexHull& c );
+void calculateEdgesAndNormals(ConvexHull& chull);
 
-bool collide ( const ConvexHull& c1, const geo::Vector3& pos1,
-               const ConvexHull& c2, const geo::Vector3& pos2,
-               float xy_padding = 0, float z_padding = 0 );
+bool collide (const ConvexHull& c1, const geo::Vector3& pos1,
+              const ConvexHull& c2, const geo::Vector3& pos2,
+              float xy_padding = 0, float z_padding = 0);
 
-void calculateArea ( ConvexHull& c );
+void calculateArea (ConvexHull& c);
 
 }
 

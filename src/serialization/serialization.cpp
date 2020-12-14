@@ -319,9 +319,9 @@ void serialize(const geo::Shape& s, ed::io::Writer& w)
     for(unsigned int i = 0; i < triangles.size(); ++i)
     {
         w.addArrayItem();
-        w.writeValue("i1", triangles[i].i1_);
-        w.writeValue("i2", triangles[i].i2_);
-        w.writeValue("i3", triangles[i].i3_);
+        w.writeValue("i1", static_cast<int>(triangles[i].i1_));
+        w.writeValue("i2", static_cast<int>(triangles[i].i2_));
+        w.writeValue("i3", static_cast<int>(triangles[i].i3_));
         w.endArrayItem();
 
     }
@@ -378,12 +378,41 @@ bool deserialize(tue::config::Reader& r_orig, const std::string& group, geo::Sha
 {
     tue::config::Reader r = r_orig;
 
-    if (!r.readArray(group))
-        return false;
-
     geo::Mesh mesh;
 
-    while(r.nextArrayItem())
+    if (r.readArray(group))
+    {
+        while(r.nextArrayItem())
+        {
+            if (r.readGroup("box"))
+            {
+                geo::Vec3 min, max, size;
+                if (deserialize(r, "min", min))
+                {
+                    if (!deserialize(r, "max", max))
+                        return false;
+                }
+                else if (deserialize(r, "size", size))
+                {
+                    min = -0.5 * size;
+                    max =  0.5 * size;
+                }
+                else
+                {
+                    return false;
+                }
+
+                geo::Pose3D pose;
+                if (!deserialize(r, "pose", pose))
+                    pose = geo::Pose3D::identity();
+
+                mesh.add(geo::Box(min, max).getMesh().getTransformed(pose));
+                r.endGroup();
+            }
+        }
+        r.endArray();
+    }
+    else if(r.readGroup(group))
     {
         if (r.readGroup("box"))
         {
@@ -408,8 +437,11 @@ bool deserialize(tue::config::Reader& r_orig, const std::string& group, geo::Sha
                 pose = geo::Pose3D::identity();
 
             mesh.add(geo::Box(min, max).getMesh().getTransformed(pose));
+            r.endGroup();
         }
     }
+    else
+        return false;
 
     if (mesh.getTriangleIs().empty())
         return false;
@@ -457,7 +489,10 @@ void serialize(const ImageMask& mask, tue::serialization::OutputArchive& m)
     m << size;
 
     for(ImageMask::const_iterator it = mask.begin(); it != mask.end(); ++it)
-        m << it->y * mask.width() + it->x;
+    {
+        cv::Point2i pt = it();
+        m << pt.y * mask.width() + pt.x;
+    }
 }
 
 // ----------------------------------------------------------------------------------------------------

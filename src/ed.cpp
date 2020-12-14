@@ -5,38 +5,36 @@
 
 // Query
 #include <ed/entity.h>
-#include <ed/SimpleQuery.h>
+#include <ed_msgs/SimpleQuery.h>
+#include <ed/helpers/msg_conversions.h>
 #include <geolib/ros/msg_conversions.h>
+#include <geolib/datatypes.h>
 #include <tue/config/yaml_emitter.h>
 #include <ed/serialization/serialization.h>
 
-#include "ed/Query.h"
+#include <ed_msgs/Query.h>
 #include "ed/io/json_writer.h"
 
 // Update
-#include <ed/UpdateSrv.h>
+#include <ed_msgs/UpdateSrv.h>
 #include "ed/io/json_reader.h"
 #include "ed/update_request.h"
 
 // Reset
-#include <ed/Reset.h>
+#include <ed_msgs/Reset.h>
 
 // Configure
-#include <ed/Configure.h>
+#include <ed_msgs/Configure.h>
 
 // Loop
 #include <ed/event_clock.h>
 
 // Plugin loading
 #include <ed/plugin.h>
-#include <ed/LoadPlugin.h>
+#include <ed_msgs/LoadPlugin.h>
 #include <tue/config/loaders/yaml.h>
 
-#include <geolib/Shape.h>
-#include <geolib/Mesh.h>
-
-#include <ros/package.h>
-
+#include <set>
 #include <signal.h>
 #include <stdio.h>
 #include <execinfo.h>
@@ -55,57 +53,7 @@ std::string update_request_;
 
 // ----------------------------------------------------------------------------------------------------
 
-void entityToMsg(const ed::Entity& e, ed::EntityInfo& msg)
-{
-    msg.id = e.id().str();
-    msg.type = e.type();
-
-    for(std::set<std::string>::const_iterator it = e.types().begin(); it != e.types().end(); ++it)
-        msg.types.push_back(*it);
-
-    msg.existence_probability = e.existenceProbability();
-//    msg.creation_time = ros::Time(e.creationTime());
-
-    // Convex hull
-    const ed::ConvexHull& convex_hull = e.convexHull();
-    if (!convex_hull.points.empty())
-    {
-        msg.z_min = convex_hull.z_min;
-        msg.z_max = convex_hull.z_max;
-
-        msg.convex_hull.resize(convex_hull.points.size());
-        for(unsigned int i = 0; i < msg.convex_hull.size(); ++i)
-        {
-            msg.convex_hull[i].x = convex_hull.points[i].x;
-            msg.convex_hull[i].y = convex_hull.points[i].y;
-            msg.convex_hull[i].z = 0;
-        }
-    }
-
-    msg.has_shape = e.shape() ? true : false;
-    msg.has_pose = e.has_pose();
-    if (e.has_pose())
-        geo::convert(e.pose(), msg.pose);
-
-    msg.last_update_time =  ros::Time(e.lastUpdateTimestamp());
-
-    if (!e.data().empty())
-    {
-        std::stringstream ss;
-        tue::config::YAMLEmitter emitter;
-        emitter.emit(e.data(), ss);
-
-        msg.data = ss.str();
-    }
-
-    // Flags
-    for(std::set<std::string>::const_iterator it = e.flags().begin(); it != e.flags().end(); ++it)
-        msg.flags.push_back(*it);
-}
-
-// ----------------------------------------------------------------------------------------------------
-
-bool srvReset(ed::Reset::Request& req, ed::Reset::Response& res)
+bool srvReset(ed_msgs::Reset::Request& req, ed_msgs::Reset::Response& res)
 {
     ed_wm->reset(req.keep_all_shapes);
     return true;
@@ -113,7 +61,7 @@ bool srvReset(ed::Reset::Request& req, ed::Reset::Response& res)
 
 // ----------------------------------------------------------------------------------------------------
 
-bool srvUpdate(ed::UpdateSrv::Request& req, ed::UpdateSrv::Response& res)
+bool srvUpdate(ed_msgs::UpdateSrv::Request& req, ed_msgs::UpdateSrv::Response& res)
 {
     ed::io::JSONReader r(req.request.c_str());
 
@@ -187,6 +135,18 @@ bool srvUpdate(ed::UpdateSrv::Request& req, ed::UpdateSrv::Response& res)
                 }
             }
 
+            // Add data of entity, which is used for extra properties
+            // ToDo: should data be used in this way? Or should other variables be introduced for this purpose
+            std::string data_str;
+            if (r.readValue("data", data_str))
+            {
+              tue::Configuration data_config;
+              if (tue::config::loadFromYAMLString(data_str, data_config))
+              {
+                update_req.addData(id, data_config.data());
+              }
+            }
+
             if (r.readArray("properties"))
             {
                 while(r.nextArrayItem())
@@ -195,6 +155,7 @@ bool srvUpdate(ed::UpdateSrv::Request& req, ed::UpdateSrv::Response& res)
                     if (!r.readValue("name", prop_name))
                         continue;
 
+                    // ToDo: is this thread safe?
                     const ed::PropertyKeyDBEntry* entry = ed_wm->getPropertyKeyDBEntry(prop_name);
                     if (!entry)
                     {
@@ -239,11 +200,8 @@ bool srvUpdate(ed::UpdateSrv::Request& req, ed::UpdateSrv::Response& res)
 
 // ----------------------------------------------------------------------------------------------------
 
-bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
+bool srvQuery(ed_msgs::Query::Request& req, ed_msgs::Query::Response& res)
 {
-    tue::Timer timer;
-    timer.start();
-
     // Set of queried ids
     std::set<std::string> ids(req.ids.begin(), req.ids.end());
 
@@ -251,13 +209,16 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
     std::vector<ed::Idx> property_idxs;
     for(std::vector<std::string>::const_iterator it = req.properties.begin(); it != req.properties.end(); ++it)
     {
+        // ToDo: is this thread safe?
         const ed::PropertyKeyDBEntry* entry = ed_wm->getPropertyKeyDBEntry(*it);
         if (entry)
             property_idxs.push_back(entry->idx);
     }
 
-    const std::vector<unsigned long>& entity_revs = ed_wm->world_model()->entity_revisions();
-    const std::vector<ed::EntityConstPtr>&  entities = ed_wm->world_model()->entities();
+    // Make a copy of the WM, to keep it thead safe
+    ed::WorldModel wm = *ed_wm->world_model();
+    const std::vector<unsigned long>& entity_revs = wm.entity_revisions();
+    const std::vector<ed::EntityConstPtr>&  entities = wm.entities();
 
     std::vector<std::string> removed_entities;
 
@@ -282,7 +243,7 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
         {
             w.addArrayItem();
             w.writeValue("id", e->id().str());
-            w.writeValue("idx", (int)i);
+            w.writeValue("idx", (int) i);
 
             // Write type
             w.writeValue("type", e->type());
@@ -296,7 +257,7 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
             }
 
             // Write convex hull
-            if (!e->convexHull().points.empty() && ed_wm->world_model()->entity_shape_revisions()[i] > req.since_revision)
+            if (!e->convexHull().points.empty() && wm.entity_shape_revisions()[i] > req.since_revision)
             {
                 w.writeGroup("convex_hull");
                 ed::serialize(e->convexHull(), w);
@@ -312,7 +273,7 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
             }
 
             // Mesh
-            if (e->shape() && ed_wm->world_model()->entity_shape_revisions()[i] > req.since_revision)
+            if (e->shape() && wm.entity_shape_revisions()[i] > req.since_revision)
             {
                 w.writeGroup("mesh");
                 ed::serialize(*e->shape(), w);
@@ -382,8 +343,6 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
         }
     }
 
-//    std::cout << out.str() << std::endl;
-
     w.endArray();
 
     if (!removed_entities.empty())
@@ -392,25 +351,23 @@ bool srvQuery(ed::Query::Request& req, ed::Query::Response& res)
     w.finish();
 
     res.human_readable = out.str();
-    res.new_revision = ed_wm->world_model()->revision();
-
-//    std::cout << "[ED] Quering took " << timer.getElapsedTimeInMilliSec() << " ms." << std::endl;
+    res.new_revision = wm.revision();
 
     return true;
 }
 
 // ----------------------------------------------------------------------------------------------------
 
-bool srvSimpleQuery(ed::SimpleQuery::Request& req, ed::SimpleQuery::Response& res)
+bool srvSimpleQuery(ed_msgs::SimpleQuery::Request& req, ed_msgs::SimpleQuery::Response& res)
 {
     double radius = req.radius;
     geo::Vector3 center_point;
     geo::convert(req.center_point, center_point);
 
-    for(ed::WorldModel::const_iterator it = ed_wm->world_model()->begin(); it != ed_wm->world_model()->end(); ++it)
+    // Make a copy of the WM, to keep it thead safe
+    ed::WorldModel wm = *ed_wm->world_model();
+    for(ed::WorldModel::const_iterator it = wm.begin(); it != wm.end(); ++it)
     {
-//        std::cout << it->first << std::endl;
-
         const ed::EntityConstPtr& e = *it;
         if (!req.id.empty() && e->id() != ed::UUID(req.id))
             continue;
@@ -432,17 +389,34 @@ bool srvSimpleQuery(ed::SimpleQuery::Request& req, ed::SimpleQuery::Response& re
             }
         }
 
-        bool geom_ok = true;
-        if (radius > 0)
+        if (radius < std::numeric_limits<double>::infinity())
         {
-            geom_ok = (radius * radius > (e->pose().t - center_point).length2());
+            bool geom_ok = false;
+
+            if(req.ignore_z)
+                center_point.z = e->pose().t.z; // Ignoring z in global frame, not in entity frame, as it can be rotated
+
+            geo::ShapeConstPtr shape = e->shape();
+            if (shape)
+            {
+                geo::Vector3 center_point_e = e->pose().getBasis().transpose() * (center_point - e->pose().getOrigin());
+                if (radius > 0)
+                    geom_ok = shape->intersect(center_point_e, radius);
+                else
+                    geom_ok = shape->contains(center_point_e);
+            }
+            else
+            {
+                geom_ok = radius > 0 && radius * radius > (e->pose().t - center_point).length2();
+            }
+
+            if (!geom_ok)
+                continue;
         }
 
-        if (geom_ok)
-        {
-            res.entities.push_back(ed::EntityInfo());
-            entityToMsg(*e, res.entities.back());
-        }
+        res.entities.push_back(ed_msgs::EntityInfo());
+        convert(*e, res.entities.back());
+
     }
 
     return true;
@@ -450,13 +424,18 @@ bool srvSimpleQuery(ed::SimpleQuery::Request& req, ed::SimpleQuery::Response& re
 
 // ----------------------------------------------------------------------------------------------------
 
-bool srvConfigure(ed::Configure::Request& req, ed::Configure::Response& res)
+bool srvConfigure(ed_msgs::Configure::Request& req, ed_msgs::Configure::Response& res)
 {
     tue::Configuration config;
-    if (!tue::config::loadFromYAMLString(req.request, config))
+    if (!tue::config::loadFromYAMLFile(req.request, config))
     {
-        res.error_msg = config.error();
-        return true;
+        std::string config_error = config.error();
+        config = tue::Configuration();
+        if(!tue::config::loadFromYAMLString(req.request, config))
+        {
+            res.error_msg = config_error + "\n\n" + config.error();
+            return true;
+        }
     }
 
     // Configure ED
@@ -476,7 +455,7 @@ bool srvConfigure(ed::Configure::Request& req, ed::Configure::Response& res)
 bool getEnvironmentVariable(const std::string& var, std::string& value)
 {
     const char * val = ::getenv(var.c_str());
-    if ( val == 0 )
+    if ( val == nullptr )
         return false;
 
     value = val;
@@ -646,12 +625,12 @@ int main(int argc, char** argv)
     ros::CallbackQueue cb_queue;
 
     ros::AdvertiseServiceOptions opt_simple_query =
-            ros::AdvertiseServiceOptions::create<ed::SimpleQuery>(
+            ros::AdvertiseServiceOptions::create<ed_msgs::SimpleQuery>(
                 "simple_query", srvSimpleQuery, ros::VoidPtr(), &cb_queue);
     ros::ServiceServer srv_simple_query = nh_private.advertiseService(opt_simple_query);
 
     ros::AdvertiseServiceOptions opt_reset =
-            ros::AdvertiseServiceOptions::create<ed::Reset>(
+            ros::AdvertiseServiceOptions::create<ed_msgs::Reset>(
                 "reset", srvReset, ros::VoidPtr(), &cb_queue);
     ros::ServiceServer srv_reset = nh_private.advertiseService(opt_reset);
 
